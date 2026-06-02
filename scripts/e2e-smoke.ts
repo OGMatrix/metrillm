@@ -115,6 +115,7 @@ async function main(): Promise<void> {
   printSuccess(
     `Smoke passed for ${result.model}: ${result.performance.tokensPerSecond.toFixed(1)} tok/s, TTFT ${Math.round(result.performance.ttft)}ms, HW fit ${result.fitness.hardwareFitScore}/100${result.fitness.globalScore !== null ? `, global ${result.fitness.globalScore}/100` : ""}`
   );
+  process.exit(0);
 }
 
 main().catch((err) => {
