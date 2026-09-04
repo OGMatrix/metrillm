@@ -105,7 +105,7 @@ function renderMenu<T>(
 
   const wrapLine = (line: RenderLine): string[] => {
     // RenderLine.text is always plain text (style is applied after wrapping),
-    // so no need for stripAnsi here.
+    // so no need to stripAnsi here.
     const visibleLength = line.text.length;
     if (visibleLength <= wrapWidth) {
       return [line.style ? line.style(line.text) : line.text];
@@ -482,8 +482,10 @@ function printQuickCommands(): void {
   const backendExamples = [
     `metrillm list --backend ${defaultBackend}`,
     "metrillm list --backend lm-studio",
+    "metrillm list --backend llamacpp",
     `metrillm bench --backend ${defaultBackend} --model <model-name>`,
     "metrillm bench --backend lm-studio --model <model-name>",
+    "metrillm bench --backend llamacpp --model <model-name>",
   ];
 
   console.log(chalk.bold("\nUseful Commands"));
@@ -599,7 +601,7 @@ interface SettingsMenuDeps {
 }
 
 function resolveConfiguredBackend(config: MetriLLMConfig): RuntimeBackend {
-  return config.runtimeBackend === "lm-studio" ? "lm-studio" : "ollama";
+  return config.runtimeBackend ?? "ollama";
 }
 
 function settingsMenuOptions(
@@ -673,6 +675,11 @@ async function defaultSelectRuntimeBackend(currentBackend: RuntimeBackend): Prom
         label: "LM Studio",
         value: "lm-studio",
         hint: "Use models served by LM Studio local server.",
+      },
+      {
+        label: "llama.cpp",
+        value: "llamacpp",
+        hint: "Use models served by a llama-server instance.",
       },
     ],
     {
@@ -887,7 +894,7 @@ export async function runInteractiveMenu(opts: InteractiveMenuOptions = {}): Pro
     }
 
     if (mainChoice === "update") {
-      infoMsg(`Updating metrillm to v${updateInfo?.latest} via ${installChannelLabel}...`);
+      infoMsg(`Updating metrillm to v${updateInfo?.latest} via ${updateInfo?.updateAvailable ? installChannelLabel : ""}...`);
       const ok = runUpdate();
       if (ok) {
         successMsg("Update successful! Please restart metrillm to use the new version.");

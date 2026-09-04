@@ -37,7 +37,7 @@ function checkWindowsExecutionPolicy(): void {
         `PowerShell execution policy is "${policy}" — "npm install -g metrillm@latest" won't work in PowerShell.`
       );
       warnMsg(
-        "Fix: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned"
+        "Fix: Set-ExecutionPolicy -Scope CurrentUser ExecutionPolicy RemoteSigned"
       );
       warnMsg(
         "Or keep using: npx metrillm@latest (works without changing the policy)"
@@ -153,7 +153,7 @@ program
   .command("bench")
   .description("Run benchmarks on local LLM models")
   .option("-m, --model <name>", "Specific model to benchmark")
-  .option("--backend <name>", "Inference backend: ollama | lm-studio")
+  .option("--backend <name>", "Inference backend: ollama | lm-studio | llamacpp")
   .option("--perf-only", "Run hardware/performance benchmarks only (skip quality tasks)")
   .option("--perf-warmup-timeout-ms <ms>", "Warmup timeout in milliseconds (default: 300000)")
   .option("--perf-prompt-timeout-ms <ms>", "Per-prompt timeout in milliseconds (default: 120000)")
@@ -329,7 +329,7 @@ program
 program
   .command("list")
   .description("List available runtime models")
-  .option("--backend <name>", "Inference backend: ollama | lm-studio")
+  .option("--backend <name>", "Inference backend: ollama | lm-studio | llamacpp")
   .action(async (opts) => {
     let backend: string | undefined;
     if (opts.backend !== undefined) {
