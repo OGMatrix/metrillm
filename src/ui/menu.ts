@@ -482,8 +482,9 @@ function printQuickCommands(): void {
   const backendExamples = [
     `metrillm list --backend ${defaultBackend}`,
     "metrillm list --backend lm-studio",
+    "metrillm list --backend llama-cpp",
     `metrillm bench --backend ${defaultBackend} --model <model-name>`,
-    "metrillm bench --backend lm-studio --model <model-name>",
+    "metrillm bench --backend llama-cpp --model <model-name>",
   ];
 
   console.log(chalk.bold("\nUseful Commands"));
@@ -491,9 +492,9 @@ function printQuickCommands(): void {
   for (const command of backendExamples) {
     console.log(`  ${command}`);
   }
-  console.log("  metrillm bench --backend lm-studio --model <model-name> --perf-only");
-  console.log("  metrillm bench --backend lm-studio --model <model-name> --perf-prompt-timeout-ms 90000");
-  console.log("  metrillm bench --backend lm-studio --model <model-name> --export json --out exports");
+  console.log("  metrillm bench --backend llama-cpp --model <model-name> --perf-only");
+  console.log("  metrillm bench --backend llama-cpp --model <model-name> --perf-prompt-timeout-ms 90000");
+  console.log("  metrillm bench --backend llama-cpp --model <model-name> --export json --out exports");
   console.log("  metrillm --ci-no-menu");
   console.log("  metrillm bench");
   console.log("  metrillm menu");
@@ -599,7 +600,10 @@ interface SettingsMenuDeps {
 }
 
 function resolveConfiguredBackend(config: MetriLLMConfig): RuntimeBackend {
-  return config.runtimeBackend === "lm-studio" ? "lm-studio" : "ollama";
+  if (config.runtimeBackend === "lm-studio" || config.runtimeBackend === "llama-cpp") {
+    return config.runtimeBackend;
+  }
+  return "ollama";
 }
 
 function settingsMenuOptions(
@@ -673,6 +677,11 @@ async function defaultSelectRuntimeBackend(currentBackend: RuntimeBackend): Prom
         label: "LM Studio",
         value: "lm-studio",
         hint: "Use models served by LM Studio local server.",
+      },
+      {
+        label: "llama.cpp",
+        value: "llama-cpp",
+        hint: "Use GGUF models served by llama-server (OpenAI-compatible /v1 API).",
       },
     ],
     {
