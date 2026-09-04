@@ -41,7 +41,7 @@ vi.mock("../src/core/uploader.js", () => ({
 
 function makeResult(params: {
   model: string;
-  runtimeBackend?: "ollama" | "lm-studio";
+  runtimeBackend?: "ollama" | "lm-studio" | "llama-cpp";
   timestamp?: string;
 }): string {
   return JSON.stringify({
@@ -88,5 +88,22 @@ describe("mcp get_results runtime filtering", () => {
     const ollamaBody = JSON.parse(ollamaOutput) as { count: number; results: Array<{ model: string }> };
     expect(ollamaBody.count).toBe(2);
     expect(ollamaBody.results.map((r) => r.model).sort()).toEqual(["legacy-ollama", "llama3.2:3b"]);
+  });
+
+  it("returns only llama.cpp rows when the llama-cpp runtime is selected", async () => {
+    readdirMock.mockResolvedValue(["ollama.json", "lm.json", "llamacpp.json"]);
+    readFileMock.mockImplementation(async (path: string) => {
+      if (path.endsWith("/ollama.json")) return makeResult({ model: "llama3.2:3b", runtimeBackend: "ollama" });
+      if (path.endsWith("/lm.json")) return makeResult({ model: "qwen3-8b", runtimeBackend: "lm-studio" });
+      if (path.endsWith("/llamacpp.json")) return makeResult({ model: "Qwen3-8B-Q4_K_M.gguf", runtimeBackend: "llama-cpp" });
+      throw new Error("unexpected path");
+    });
+
+    const { handleGetResults } = await import("../mcp/src/tools.js");
+
+    const output = await handleGetResults({ runtime: "llama-cpp" });
+    const body = JSON.parse(output) as { count: number; results: Array<{ model: string }> };
+    expect(body.count).toBe(1);
+    expect(body.results.map((r) => r.model)).toEqual(["Qwen3-8B-Q4_K_M.gguf"]);
   });
 });

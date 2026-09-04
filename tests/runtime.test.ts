@@ -18,6 +18,14 @@ const {
   lmStudioUnloadModelMock,
   lmStudioSetDefaultKeepAliveMock,
   lmStudioAbortOngoingRequestsMock,
+  llamaCppGenerateMock,
+  llamaCppGenerateStreamMock,
+  llamaCppListModelsMock,
+  llamaCppListRunningModelsMock,
+  getLlamaCppVersionMock,
+  llamaCppUnloadModelMock,
+  llamaCppSetDefaultKeepAliveMock,
+  llamaCppAbortOngoingRequestsMock,
 } = vi.hoisted(() => ({
   generateMock: vi.fn(),
   generateStreamMock: vi.fn(),
@@ -36,6 +44,14 @@ const {
   lmStudioUnloadModelMock: vi.fn(),
   lmStudioSetDefaultKeepAliveMock: vi.fn(),
   lmStudioAbortOngoingRequestsMock: vi.fn(),
+  llamaCppGenerateMock: vi.fn(),
+  llamaCppGenerateStreamMock: vi.fn(),
+  llamaCppListModelsMock: vi.fn(),
+  llamaCppListRunningModelsMock: vi.fn(),
+  getLlamaCppVersionMock: vi.fn(),
+  llamaCppUnloadModelMock: vi.fn(),
+  llamaCppSetDefaultKeepAliveMock: vi.fn(),
+  llamaCppAbortOngoingRequestsMock: vi.fn(),
 }));
 
 vi.mock("../src/core/ollama-client.js", () => ({
@@ -59,6 +75,17 @@ vi.mock("../src/core/lm-studio-client.js", () => ({
   unloadModel: lmStudioUnloadModelMock,
   setDefaultKeepAlive: lmStudioSetDefaultKeepAliveMock,
   abortOngoingRequests: lmStudioAbortOngoingRequestsMock,
+}));
+
+vi.mock("../src/core/llama-cpp-client.js", () => ({
+  generate: llamaCppGenerateMock,
+  generateStream: llamaCppGenerateStreamMock,
+  listModels: llamaCppListModelsMock,
+  listRunningModels: llamaCppListRunningModelsMock,
+  getLlamaCppVersion: getLlamaCppVersionMock,
+  unloadModel: llamaCppUnloadModelMock,
+  setDefaultKeepAlive: llamaCppSetDefaultKeepAliveMock,
+  abortOngoingRequests: llamaCppAbortOngoingRequestsMock,
 }));
 
 describe("runtime proxy", () => {
@@ -173,5 +200,59 @@ describe("runtime proxy", () => {
     expect(lmStudioUnloadModelMock).toHaveBeenCalledWith("m");
     expect(lmStudioSetDefaultKeepAliveMock).toHaveBeenCalledWith("2m");
     expect(lmStudioAbortOngoingRequestsMock).toHaveBeenCalled();
+  });
+
+  it("switches to the llama.cpp runtime via setRuntimeByName", async () => {
+    llamaCppGenerateMock.mockResolvedValueOnce({ response: "llama-ok" });
+    llamaCppGenerateStreamMock.mockResolvedValueOnce({ response: "llama-stream-ok" });
+    llamaCppListModelsMock.mockResolvedValueOnce([{ name: "qwen3-8b-Q4_K_M.gguf", modelFormat: "gguf" }]);
+    llamaCppListRunningModelsMock.mockResolvedValueOnce([{ name: "qwen3-8b-Q4_K_M.gguf" }]);
+    getLlamaCppVersionMock.mockResolvedValueOnce("b4993");
+
+    const runtime = await import("../src/core/runtime.js");
+    const backend = runtime.setRuntimeByName("llama-cpp");
+
+    expect(backend).toBe("llama-cpp");
+    expect(runtime.getRuntimeName()).toBe("llama-cpp");
+    expect(runtime.getRuntimeModelFormat()).toBe("gguf");
+    expect(runtime.getRuntimeDisplayName("llama-cpp")).toBe("llama.cpp");
+
+    await runtime.generate("m", "p");
+    await runtime.generateStream("m", "p");
+    await runtime.listModels();
+    await runtime.resolveRuntimeModel("unknown-model");
+    await runtime.listRunningModels();
+    await runtime.getRuntimeVersion();
+    await runtime.unloadModel("m");
+    runtime.setRuntimeKeepAlive("5m");
+    runtime.abortOngoingRequests();
+
+    expect(llamaCppGenerateMock).toHaveBeenCalled();
+    expect(llamaCppGenerateStreamMock).toHaveBeenCalled();
+    expect(llamaCppListModelsMock).toHaveBeenCalled();
+    expect(llamaCppListRunningModelsMock).toHaveBeenCalled();
+    expect(getLlamaCppVersionMock).toHaveBeenCalled();
+    expect(llamaCppUnloadModelMock).toHaveBeenCalledWith("m");
+    expect(llamaCppSetDefaultKeepAliveMock).toHaveBeenCalledWith("5m");
+    expect(llamaCppAbortOngoingRequestsMock).toHaveBeenCalled();
+  });
+
+  it("normalizes and rejects backend names", async () => {
+    const runtime = await import("../src/core/runtime.js");
+    expect(runtime.normalizeRuntimeBackend("llama-cpp")).toBe("llama-cpp");
+    expect(runtime.normalizeRuntimeBackend(" LLAMA-CPP ")).toBe("llama-cpp");
+    expect(runtime.normalizeRuntimeBackend("lm-studio")).toBe("lm-studio");
+    expect(runtime.normalizeRuntimeBackend(undefined)).toBe("ollama");
+    expect(() => runtime.normalizeRuntimeBackend("vllm")).toThrow(/Unsupported backend/);
+    expect(Array.from(runtime.SUPPORTED_RUNTIME_BACKENDS)).toEqual(["ollama", "lm-studio", "llama-cpp"]);
+  });
+
+  it("provides llama.cpp-specific setup hints and labels", async () => {
+    const runtime = await import("../src/core/runtime.js");
+    expect(runtime.getRuntimeModelInstallHint("llama-cpp")).toContain("llama-server");
+    expect(runtime.getRuntimeSetupHints("llama-cpp")).toEqual([
+      "Start llama-server with a GGUF model: llama-server -m <model>.gguf -c 8192",
+      "Optionally set LLAMA_CPP_BASE_URL if your server is not on http://127.0.0.1:8080.",
+    ]);
   });
 });

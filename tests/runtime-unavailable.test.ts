@@ -29,4 +29,19 @@ describe("getRuntimeUnavailableHelp", () => {
       "  • To change backend: Main Menu -> Settings -> Runtime backend",
     ]);
   });
+
+  it("includes backend-selection guidance for llama.cpp", () => {
+    expect(
+      getRuntimeUnavailableHelp("llama-cpp", [
+        "Start llama-server with a GGUF model: llama-server -m <model>.gguf -c 8192",
+        "Optionally set LLAMA_CPP_BASE_URL if your server is not on http://127.0.0.1:8080.",
+      ])
+    ).toEqual([
+      "MetriLLM is currently set to use llama.cpp.",
+      "Either start llama.cpp, or switch to another backend in Settings.",
+      "  • Start llama-server with a GGUF model: llama-server -m <model>.gguf -c 8192",
+      "  • Optionally set LLAMA_CPP_BASE_URL if your server is not on http://127.0.0.1:8080.",
+      "  • To change backend: Main Menu -> Settings -> Runtime backend",
+    ]);
+  });
 });
