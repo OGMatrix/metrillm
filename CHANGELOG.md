@@ -7,6 +7,16 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+### Added
+
+- llama.cpp runtime backend (`--backend llama-cpp`) with full CLI, menu, and MCP support:
+  - Talks to `llama-server` (OpenAI-compatible `/v1/chat/completions`), including router-mode multi-model discovery (`GET /models`).
+  - tok/s, prompt/completion token counts from server `usage`/`timings` when available (streaming requests opt in via `stream_options.include_usage`); falls back to estimation and flags `tokensPerSecondEstimated` otherwise.
+  - Quantization + parameter-size inference from GGUF model names, with `meta.n_params`/`meta.size` preferred when the server provides them.
+  - Non-thinking guard (`reasoning_effort: "none"`) with reasoning-leak detection and graceful fallback when the field is rejected.
+  - `POST /models/unload` for router-mode servers (404/405 tolerated on single-model servers).
+  - Config via `LLAMA_CPP_BASE_URL` (default `http://127.0.0.1:8080`) and optional `LLAMA_CPP_API_KEY`.
+
 ## [0.2.6] - 2026-03-16
 
 ### Fixed

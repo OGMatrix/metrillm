@@ -4,11 +4,11 @@ Guidelines for AI agents and contributors working on this repository.
 
 ## Project Overview
 
-MetriLLM is an open-source CLI tool that benchmarks local LLM models running on Ollama or LM Studio. It measures performance (tok/s, TTFT, memory, CPU load) and quality (reasoning, math, coding, instruction following, structured output, multilingual), then computes a hardware fitness verdict.
+MetriLLM is an open-source CLI tool that benchmarks local LLM models running on Ollama, LM Studio, or llama.cpp. It measures performance (tok/s, TTFT, memory, CPU load) and quality (reasoning, math, coding, instruction following, structured output, multilingual), then computes a hardware fitness verdict.
 
 - **License**: Apache 2.0
 - **Language**: TypeScript (ESM, Node 20+)
-- **Runtimes**: Ollama (`src/core/ollama-client.ts`), LM Studio (`src/core/lm-studio-client.ts`), abstracted via `src/core/runtime.ts`
+- **Runtimes**: Ollama (`src/core/ollama-client.ts`), LM Studio (`src/core/lm-studio-client.ts`), llama.cpp (`src/core/llama-cpp-client.ts`), abstracted via `src/core/runtime.ts`
 - **Companion repo**: `MetriLLM/metrillm-web` (private) — leaderboard website at `metrillm.dev`
 
 ## Project Structure
@@ -17,7 +17,7 @@ MetriLLM is an open-source CLI tool that benchmarks local LLM models running on 
 src/
   benchmarks/       # Benchmark runners (performance + 6 quality categories)
   commands/         # CLI command handlers (bench, list)
-  core/             # Infrastructure (Ollama client, hardware detection, storage, upload, telemetry)
+  core/             # Infrastructure (runtime clients, hardware detection, storage, upload, telemetry)
   datasets/         # Ground truth JSON fixtures for quality evaluation
   scoring/          # Score computation (performance, quality, fitness verdict)
   ui/               # CLI output (tables, spinners, menus, verdict display)
@@ -67,7 +67,7 @@ Run a single test: `npx vitest run tests/scoring.test.ts`
 ## Security
 
 - **Node >= 20** required (`.nvmrc`)
-- Env vars used: `METRILLM_SUPABASE_URL`, `METRILLM_SUPABASE_ANON_KEY`, `OLLAMA_HOST` (targets non-default Ollama endpoints)
+- Env vars used: `METRILLM_SUPABASE_URL`, `METRILLM_SUPABASE_ANON_KEY`, `OLLAMA_HOST` (targets non-default Ollama endpoints), `LLAMA_CPP_BASE_URL` / `LLAMA_CPP_API_KEY` (target non-default llama-server endpoints or authenticated servers)
 - `src/benchmarks/coding.ts` runs LLM-generated code in a Node VM sandbox — changes require extra care
 
 ## Database

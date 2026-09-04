@@ -54,7 +54,7 @@ metrillm bench
 ## Install
 
 > Requires [Node 20+](https://nodejs.org/) and a local runtime:
-> [Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/).
+> [Ollama](https://ollama.com/), [LM Studio](https://lmstudio.ai/), or [llama.cpp](https://github.com/ggml-org/llama.cpp) (`llama-server`).
 
 ```bash
 # Install globally
@@ -83,6 +83,9 @@ metrillm bench --model gemma3:4b
 
 # Benchmark with LM Studio backend
 metrillm bench --backend lm-studio --model qwen3-8b
+
+# Benchmark with llama.cpp backend (llama-server must be running)
+metrillm bench --backend llama-cpp --model Qwen3-8B-Q4_K_M.gguf
 
 # Benchmark all installed models
 metrillm bench --all
@@ -130,6 +133,7 @@ Alternatively, use `npx metrillm@latest` which bypasses the issue entirely.
 |---|---|---|---|
 | Ollama | `--backend ollama` | `http://127.0.0.1:11434` | `OLLAMA_HOST` (optional) |
 | LM Studio | `--backend lm-studio` | `http://127.0.0.1:1234` | `LM_STUDIO_BASE_URL` (optional), `LM_STUDIO_API_KEY` (optional) |
+| llama.cpp | `--backend llama-cpp` | `http://127.0.0.1:8080` | `LLAMA_CPP_BASE_URL` (optional), `LLAMA_CPP_API_KEY` (optional) |
 
 Shared runtime env:
 - `METRILLM_STREAM_STALL_TIMEOUT_MS` (optional): stream watchdog for all backends, default `30000`, `0` disables it
@@ -137,6 +141,14 @@ Shared runtime env:
 LM Studio benchmark runs now use the native REST inference endpoint (`/api/v1/chat`) for both streaming and non-streaming generation.
 The previous OpenAI-compatible inference path (`/v1/chat/completions`) has been retired from MetriLLM so tok/s and TTFT can rely on native LM Studio stats when available.
 If a LM Studio response omits native token stats, MetriLLM still computes a score and shows the throughput as `estimated`.
+
+llama.cpp benchmark runs use the `llama-server` HTTP API (`/v1/chat/completions`), which is OpenAI-compatible.
+MetriLLM prefers the server-reported `usage` and `timings` blocks for token counts and tok/s; when a server build omits them, the completion count is estimated and the throughput is shown as `estimated`.
+Start a server with your model, e.g.:
+
+```bash
+llama-server -m Qwen3-8B-Q4_K_M.gguf -c 32768 -np 4
+```
 
 For very large models, tune timeout flags:
 - `--perf-warmup-timeout-ms` (default `300000`)

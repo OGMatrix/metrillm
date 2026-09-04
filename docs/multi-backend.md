@@ -9,23 +9,31 @@ These are independent: a single backend (e.g. LM Studio) can serve both GGUF and
 
 ## Supported Backends
 
-| Backend    | Format(s)          | API             | Default Port | Detection       |
-|------------|--------------------|-----------------|--------------|-----------------|
-| Ollama     | GGUF               | REST `/api`     | 11434        | `ollama serve`  |
-| LM Studio  | Runtime-dependent  | Native REST     | 1234         | `/api/v1/models`|
-| mlx-lm     | MLX                | OpenAI-compat   | 8080         | `/v1/models`    |
-| llama.cpp  | GGUF               | REST `/v1`      | 8080         | `/health`       |
-| vLLM       | Safetensors, GGUF  | OpenAI-compat   | 8000         | `/v1/models`    |
+| Backend    | Format(s)          | API                  | Default Port | Detection            | Status |
+|------------|--------------------|----------------------|--------------|----------------------|--------|
+| Ollama     | GGUF               | REST `/api`          | 11434        | `ollama serve`       | Stable |
+| LM Studio  | Runtime-dependent  | Native REST          | 1234         | `/api/v1/models`     | Stable |
+| llama.cpp  | GGUF               | OpenAI-compat `/v1`  | 8080         | `/v1/models` + `/props` | Stable |
+| mlx-lm     | MLX                | OpenAI-compat        | 8080         | `/v1/models`         | Planned |
+| vLLM       | Safetensors, GGUF  | OpenAI-compat        | 8000         | `/v1/models`         | Planned |
 
 LM Studio notes:
 - MetriLLM now uses LM Studio's native REST API, including `/api/v1/chat` for inference and `/api/v1/models` for primary model discovery.
 - The previous OpenAI-compatible inference endpoint `/v1/chat/completions` has been removed from the LM Studio runtime adapter.
 - Model discovery still uses LM Studio model listing endpoints because they expose inventory/runtime metadata needed by the CLI.
 
+llama.cpp notes:
+- MetriLLM targets the `llama-server` HTTP API (OpenAI-compatible `/v1/chat/completions` for inference, `/v1/models` for single-model discovery, and the router-mode `GET /models` endpoint for multi-model servers).
+- Version/build info comes from `GET /props` (`build_info` field) and degrades to `unknown` gracefully.
+- Token metrics prefer `usage` (requested via `stream_options.include_usage`) and the server `timings` block; when those are absent, MetriLLM estimates the completion count and flags `tokensPerSecondEstimated`.
+- Model unloading uses `POST /models/unload` (router mode). On single-model servers the endpoint does not exist (404/405) and is treated as a no-op.
+- Non-thinking mode sends `reasoning_effort: "none"` and verifies that no reasoning content leaks; if the server rejects the field, it is dropped and the request is retried without it.
+- Endpoint and auth are configurable via `LLAMA_CPP_BASE_URL` and `LLAMA_CPP_API_KEY`.
+
 Shared stream stall timeout:
 - MetriLLM uses one cross-backend stream watchdog flag: `--stream-stall-timeout-ms`.
 - The matching environment variable is `METRILLM_STREAM_STALL_TIMEOUT_MS`.
-- Default is `30000` ms for both Ollama and LM Studio; `0` disables the watchdog.
+- Default is `30000` ms for all backends; `0` disables the watchdog.
 
 ## Model Formats
 
@@ -47,7 +55,7 @@ MetriLLM stores the exact runtime-reported format when available. If the backend
 
 ```typescript
 export interface LLMRuntime {
-  name: string;              // "ollama" | "lm-studio" | "mlx" | "llamacpp" | "vllm"
+  name: string;              // "ollama" | "lm-studio" | "llama-cpp" | "mlx" | "vllm"
   modelFormat?: string;      // runtime default format hint (not the exact per-model saved format)
   generate(...): Promise<GenerateResult>;
   generateStream(...): Promise<GenerateResult>;
@@ -67,10 +75,10 @@ import { setRuntime, getRuntime, getRuntimeName, getRuntimeModelFormat } from ".
 
 // Default: OllamaRuntime
 // Switch backend:
-setRuntime(new LMStudioRuntime());
+setRuntimeByName("llama-cpp");
 
 // Access backend info:
-getRuntimeName();        // "lm-studio"
+getRuntimeName();        // "llama-cpp"
 getRuntimeModelFormat(); // runtime default hint, e.g. "gguf"
 ```
 
@@ -87,21 +95,26 @@ These are populated from `RunMetadata.runtimeBackend` and `RunMetadata.modelForm
 
 ## Adding a New Backend — Checklist
 
-1. **Create runtime class** — `src/core/<backend>-runtime.ts` implementing `LLMRuntime`
-   - Set `name` to the backend identifier (e.g. `"lm-studio"`)
+1. **Create client module** — `src/core/<backend>-client.ts` for low-level API calls
+
+2. **Register runtime class** — Add a class implementing `LLMRuntime` in `src/core/runtime.ts`
+   - Set `name` to the backend identifier (e.g. `"llama-cpp"`)
    - Set `modelFormat` to the default format (e.g. `"gguf"`)
    - Implement all interface methods (generate, listModels, etc.)
+   - Add the name to `SUPPORTED_RUNTIME_BACKENDS`, `RUNTIME_LABELS`, and the setup/install hint helpers
 
-2. **Create client module** — `src/core/<backend>-client.ts` for low-level API calls
+3. **Register in factory** — Add backend to `createRuntime` / `normalizeRuntimeBackend` in `src/core/runtime.ts`
 
-3. **Register in factory** — Add backend to a factory/switch in CLI option handling
-
-4. **Add CLI option** — `--backend <name>` option in `src/commands/bench.ts`
+4. **Update config parsing** — `src/core/store.ts` (`parseRuntimeBackend`) and `src/ui/menu.ts` (`resolveConfiguredBackend`, backend selector)
 
 5. **Populate metadata** — `getRuntimeName()` is auto-populated via the runtime proxy; exact `modelFormat` should come from per-model runtime metadata when available
 
-6. **Add tests** — Unit tests for the new runtime, integration test with mocked API
+6. **Update MCP** — Add the runtime to `SUPPORTED_RUNTIMES` in `mcp/src/tools.ts` and extend `normalizeResultRuntimeBackend`
 
-7. **Update types** — Add backend name to `RunMetadata.runtimeBackend` JSDoc union
+7. **Add tests** — Unit tests for the new client, runtime switching, MCP forwarding, and unavailable-runtime help
 
-8. **Update companion site** — Mirror type changes in `metrillm-web`
+8. **Update types** — Add backend name to `RunMetadata.runtimeBackend` JSDoc union
+
+9. **Update docs** — `README.md`, `docs/multi-backend.md`, `AGENTS.md`, `.env.example`
+
+10. **Update companion site** — Mirror type changes in `metrillm-web`
