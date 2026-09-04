@@ -894,7 +894,7 @@ export async function runInteractiveMenu(opts: InteractiveMenuOptions = {}): Pro
     }
 
     if (mainChoice === "update") {
-      infoMsg(`Updating metrillm to v${updateInfo?.latest} via ${updateInfo?.updateAvailable ? installChannelLabel : ""}...`);
+      infoMsg(`Updating metrillm to v${updateInfo?.latest} via ${installChannelLabel}...`);
       const ok = runUpdate();
       if (ok) {
         successMsg("Update successful! Please restart metrillm to use the new version.");
