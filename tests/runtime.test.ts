@@ -18,6 +18,14 @@ const {
   lmStudioUnloadModelMock,
   lmStudioSetDefaultKeepAliveMock,
   lmStudioAbortOngoingRequestsMock,
+  llamaCppGenerateMock,
+  llamaCppGenerateStreamMock,
+  llamaCppListModelsMock,
+  llamaCppListRunningModelsMock,
+  getLlamaCppVersionMock,
+  llamaCppUnloadModelMock,
+  llamaCppSetDefaultKeepAliveMock,
+  llamaCppAbortOngoingRequestsMock,
 } = vi.hoisted(() => ({
   generateMock: vi.fn(),
   generateStreamMock: vi.fn(),
@@ -36,6 +44,14 @@ const {
   lmStudioUnloadModelMock: vi.fn(),
   lmStudioSetDefaultKeepAliveMock: vi.fn(),
   lmStudioAbortOngoingRequestsMock: vi.fn(),
+  llamaCppGenerateMock: vi.fn(),
+  llamaCppGenerateStreamMock: vi.fn(),
+  llamaCppListModelsMock: vi.fn(),
+  llamaCppListRunningModelsMock: vi.fn(),
+  getLlamaCppVersionMock: vi.fn(),
+  llamaCppUnloadModelMock: vi.fn(),
+  llamaCppSetDefaultKeepAliveMock: vi.fn(),
+  llamaCppAbortOngoingRequestsMock: vi.fn(),
 }));
 
 vi.mock("../src/core/ollama-client.js", () => ({
@@ -59,6 +75,17 @@ vi.mock("../src/core/lm-studio-client.js", () => ({
   unloadModel: lmStudioUnloadModelMock,
   setDefaultKeepAlive: lmStudioSetDefaultKeepAliveMock,
   abortOngoingRequests: lmStudioAbortOngoingRequestsMock,
+}));
+
+vi.mock("../src/core/llamacpp-client.js", () => ({
+  generate: llamaCppGenerateMock,
+  generateStream: llamaCppGenerateStreamMock,
+  listModels: llamaCppListModelsMock,
+  listRunningModels: llamaCppListRunningModelsMock,
+  getLlamaCppVersion: getLlamaCppVersionMock,
+  unloadModel: llamaCppUnloadModelMock,
+  setDefaultKeepAlive: llamaCppSetDefaultKeepAliveMock,
+  abortOngoingRequests: llamaCppAbortOngoingRequestsMock,
 }));
 
 describe("runtime proxy", () => {
@@ -173,5 +200,51 @@ describe("runtime proxy", () => {
     expect(lmStudioUnloadModelMock).toHaveBeenCalledWith("m");
     expect(lmStudioSetDefaultKeepAliveMock).toHaveBeenCalledWith("2m");
     expect(lmStudioAbortOngoingRequestsMock).toHaveBeenCalled();
+  });
+
+  it("switches to the llama.cpp runtime via setRuntimeByName and aliases", async () => {
+    llamaCppGenerateMock.mockResolvedValueOnce({ response: "llama-ok" });
+    llamaCppGenerateStreamMock.mockResolvedValueOnce({ response: "llama-stream-ok" });
+    llamaCppListModelsMock.mockResolvedValueOnce([{ name: "model.gguf" }]);
+    llamaCppListRunningModelsMock.mockResolvedValueOnce([{ name: "model.gguf" }]);
+    getLlamaCppVersionMock.mockResolvedValueOnce("b1-abc");
+
+    const runtime = await import("../src/core/runtime.js");
+
+    expect(runtime.normalizeRuntimeBackend("llama.cpp")).toBe("llamacpp");
+    expect(runtime.normalizeRuntimeBackend("llama-cpp")).toBe("llamacpp");
+    expect(runtime.normalizeRuntimeBackend("llamacpp")).toBe("llamacpp");
+    expect(() => runtime.normalizeRuntimeBackend("vllm")).toThrow(/Unsupported backend/);
+
+    runtime.setRuntimeByName("llama.cpp");
+
+    expect(runtime.getRuntimeName()).toBe("llamacpp");
+    expect(runtime.getRuntimeDisplayName()).toBe("llama.cpp");
+    expect(runtime.getRuntimeModelFormat()).toBe("gguf");
+    expect(runtime.getRuntimeModelInstallHint()).toMatch(/llama-server -m/);
+    expect(runtime.getRuntimeSetupHints()).toEqual([
+      "Start it with:  llama-server -m <model>.gguf",
+      "Optionally set LLAMA_CPP_BASE_URL if your server is not on http://127.0.0.1:8080.",
+      "Install it at:  https://github.com/ggml-org/llama.cpp",
+    ]);
+
+    await runtime.generate("m", "p");
+    await runtime.generateStream("m", "p");
+    await runtime.listModels();
+    await runtime.resolveRuntimeModel("model.gguf");
+    await runtime.listRunningModels();
+    await runtime.getRuntimeVersion();
+    await runtime.unloadModel("m");
+    runtime.setRuntimeKeepAlive("2m");
+    runtime.abortOngoingRequests();
+
+    expect(llamaCppGenerateMock).toHaveBeenCalled();
+    expect(llamaCppGenerateStreamMock).toHaveBeenCalled();
+    expect(llamaCppListModelsMock).toHaveBeenCalled();
+    expect(llamaCppListRunningModelsMock).toHaveBeenCalled();
+    expect(getLlamaCppVersionMock).toHaveBeenCalled();
+    expect(llamaCppUnloadModelMock).toHaveBeenCalledWith("m");
+    expect(llamaCppSetDefaultKeepAliveMock).toHaveBeenCalledWith("2m");
+    expect(llamaCppAbortOngoingRequestsMock).toHaveBeenCalled();
   });
 });
