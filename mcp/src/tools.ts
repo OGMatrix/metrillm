@@ -14,13 +14,13 @@ import type { BenchResult } from "../../src/types.js";
 
 // ── Schemas ──
 
-const SUPPORTED_RUNTIMES = ["ollama", "lm-studio"] as const;
+const SUPPORTED_RUNTIMES = ["ollama", "lm-studio", "llamacpp"] as const;
 
 const runtimeSchema = z
   .enum(SUPPORTED_RUNTIMES)
   .optional()
   .default("ollama")
-  .describe("Inference runtime to use (ollama | lm-studio).");
+  .describe("Inference runtime to use (ollama | lm-studio | llamacpp).");
 
 export const listModelsSchema = z.object({
   runtime: runtimeSchema,
@@ -95,9 +95,10 @@ function assertRuntime(runtime: string): void {
 
 const RESULTS_DIR = join(homedir(), ".metrillm", "results");
 
-function normalizeResultRuntimeBackend(result: BenchResult): "ollama" | "lm-studio" {
+function normalizeResultRuntimeBackend(result: BenchResult): "ollama" | "lm-studio" | "llamacpp" {
   const runtimeBackend = result.metadata?.runtimeBackend?.trim().toLowerCase();
   if (runtimeBackend === "lm-studio") return "lm-studio";
+  if (runtimeBackend === "llamacpp") return "llamacpp";
   if (runtimeBackend === "ollama") return "ollama";
   // Legacy result files (before runtime metadata) are Ollama-only.
   return "ollama";
