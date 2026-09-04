@@ -2,6 +2,7 @@ import type { OllamaModel, OllamaRunningModel } from "../types.js";
 import type { GenerateResult, KeepAliveValue, StreamCallbacks } from "./ollama-client.js";
 import * as ollamaClient from "./ollama-client.js";
 import * as lmStudioClient from "./lm-studio-client.js";
+import * as llamaCppClient from "./llama-cpp-client.js";
 
 export interface GenerateOptions {
   temperature?: number;
@@ -31,12 +32,13 @@ export interface LLMRuntime {
   abort(): void;
 }
 
-export const SUPPORTED_RUNTIME_BACKENDS = ["ollama", "lm-studio"] as const;
+export const SUPPORTED_RUNTIME_BACKENDS = ["ollama", "lm-studio", "llama-cpp"] as const;
 export type RuntimeBackend = (typeof SUPPORTED_RUNTIME_BACKENDS)[number];
 
 const RUNTIME_LABELS: Record<RuntimeBackend, string> = {
   ollama: "Ollama",
   "lm-studio": "LM Studio",
+  "llama-cpp": "llama.cpp",
 };
 
 class OllamaRuntime implements LLMRuntime {
@@ -123,16 +125,59 @@ class LMStudioRuntime implements LLMRuntime {
   }
 }
 
+class LlamaCppRuntime implements LLMRuntime {
+  name: RuntimeBackend = "llama-cpp";
+  modelFormat = "gguf";
+
+  generate(model: string, prompt: string, opts?: GenerateOptions): Promise<GenerateResult> {
+    return llamaCppClient.generate(model, prompt, opts);
+  }
+
+  generateStream(
+    model: string,
+    prompt: string,
+    callbacks?: StreamCallbacks,
+    opts?: GenerateOptions
+  ): Promise<GenerateResult> {
+    return llamaCppClient.generateStream(model, prompt, callbacks, opts);
+  }
+
+  listModels(): Promise<OllamaModel[]> {
+    return llamaCppClient.listModels();
+  }
+
+  listRunningModels(): Promise<OllamaRunningModel[]> {
+    return llamaCppClient.listRunningModels();
+  }
+
+  getVersion(): Promise<string> {
+    return llamaCppClient.getLlamaCppVersion();
+  }
+
+  unloadModel(model: string): Promise<void> {
+    return llamaCppClient.unloadModel(model);
+  }
+
+  setKeepAlive(keepAlive?: KeepAliveValue): void {
+    llamaCppClient.setDefaultKeepAlive(keepAlive);
+  }
+
+  abort(): void {
+    llamaCppClient.abortOngoingRequests();
+  }
+}
+
 let activeRuntime: LLMRuntime = new OllamaRuntime();
 
 function createRuntime(backend: RuntimeBackend): LLMRuntime {
   if (backend === "lm-studio") return new LMStudioRuntime();
+  if (backend === "llama-cpp") return new LlamaCppRuntime();
   return new OllamaRuntime();
 }
 
 export function normalizeRuntimeBackend(value?: string): RuntimeBackend {
   const candidate = (value ?? "ollama").trim().toLowerCase();
-  if (candidate === "ollama" || candidate === "lm-studio") {
+  if (candidate === "ollama" || candidate === "lm-studio" || candidate === "llama-cpp") {
     return candidate;
   }
   throw new Error(
@@ -157,6 +202,7 @@ export function setRuntime(runtime: LLMRuntime): void {
 
 export function getRuntimeDisplayName(runtimeName: string = activeRuntime.name): string {
   if (runtimeName === "lm-studio") return RUNTIME_LABELS["lm-studio"];
+  if (runtimeName === "llama-cpp") return RUNTIME_LABELS["llama-cpp"];
   if (runtimeName === "ollama") return RUNTIME_LABELS.ollama;
   return runtimeName;
 }
@@ -167,6 +213,9 @@ export function getRuntimeModelInstallHint(runtimeName: string = activeRuntime.n
   }
   if (runtimeName === "ollama") {
     return "Pull one with: ollama pull <model>";
+  }
+  if (runtimeName === "llama-cpp") {
+    return "Start llama-server with a GGUF model: llama-server -m <model>.gguf";
   }
   return "Add at least one model in your selected runtime.";
 }
@@ -182,6 +231,12 @@ export function getRuntimeSetupHints(runtimeName: string = activeRuntime.name): 
     return [
       "Start it with:  ollama serve",
       "Install it at:  https://ollama.com",
+    ];
+  }
+  if (runtimeName === "llama-cpp") {
+    return [
+      "Start llama-server with a GGUF model: llama-server -m <model>.gguf -c 8192",
+      "Optionally set LLAMA_CPP_BASE_URL if your server is not on http://127.0.0.1:8080.",
     ];
   }
   return ["Verify the runtime is reachable and configured correctly."];

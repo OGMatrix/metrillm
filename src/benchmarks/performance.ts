@@ -92,7 +92,9 @@ export async function runPerformanceBench(
       abortOngoingRequests
     );
     const runtimeName = getRuntimeName();
-    const loadTimeAvailable = !(runtimeName === "lm-studio" && warmup.loadDuration === 0);
+    const loadTimeAvailable =
+      !(runtimeName === "lm-studio" && warmup.loadDuration === 0)
+      && !(runtimeName === "llama-cpp" && warmup.loadDuration === 0);
     const loadTime = warmup.loadDuration / 1e6; // ns -> ms
 
     // After warmup, query running models for accurate loaded size.
@@ -224,8 +226,11 @@ export async function runPerformanceBench(
     let memoryFootprintEstimated = false;
     // Only treat runtime-reported running size as a true loaded-memory footprint
     // when the backend exposes a comparable in-memory value. LM Studio's size can
-    // reflect local file/directory metadata rather than resident RAM usage.
-    const runtimeReportsComparableLoadedSize = runtimeName !== "lm-studio";
+    // reflect local file/directory metadata rather than resident RAM usage, and
+    // llama.cpp reports on-disk GGUF weight bytes (which can exceed resident RAM
+    // with mmap), so both fall back to the host memory delta.
+    const runtimeReportsComparableLoadedSize =
+      runtimeName !== "lm-studio" && runtimeName !== "llama-cpp";
     const estimatedLoadedModelSizeBytes =
       runtimeName === "lm-studio" && modelWasAlreadyLoaded
         ? await optionalProbe(() => estimateLoadedModelMemoryBytes(model), null)

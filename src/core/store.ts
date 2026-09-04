@@ -14,7 +14,7 @@ export interface MetriLLMConfig {
   telemetry?: boolean;        // true = opt-in, false = opt-out, undefined = not yet decided
   submitterNickname?: string;
   submitterEmail?: string;
-  runtimeBackend?: "ollama" | "lm-studio";
+  runtimeBackend?: "ollama" | "lm-studio" | "llama-cpp";
 }
 
 const DEFAULT_CONFIG: MetriLLMConfig = {
@@ -26,7 +26,7 @@ async function ensureDirs(): Promise<void> {
 }
 
 function parseRuntimeBackend(value: unknown): MetriLLMConfig["runtimeBackend"] | undefined {
-  if (value === "ollama" || value === "lm-studio") {
+  if (value === "ollama" || value === "lm-studio" || value === "llama-cpp") {
     return value;
   }
   return undefined;
